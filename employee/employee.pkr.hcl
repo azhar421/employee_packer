@@ -8,7 +8,7 @@ packer {
 }
 
 source "amazon-ebs" "ubuntu" {
-  ami_name      = "employee_AMI_Packer"
+  ami_name      = "employee_AMI_Packer14"
   instance_type = "t2.micro"
   region        = "ap-south-1"
   source_ami_filter {
