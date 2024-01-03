@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+    
+    // Require Go Version 1.2 or later
+    tools {
+        go 'go-1.20'
+    }
+    
+    // Checkout from GitHub
+    stages {
+        stage('Code Checkout') {
+            steps { 
+               git branch: 'main',  url: 'https://github.com/OT-MyGurukulam/employee-api.git'
+           }
+        }
+        
+        // Dependency Analysis
+        stage('Installing Dep Tool Nancy') {
+            steps {
+                script { 
+                    sh '''
+                        #Remove if any existing old file of nancy 
+                        sudo rm -rf nancy
+                        git clone https://github.com/sonatype-nexus-community/nancy.git
+                        #Compiling the tool
+                        cd nancy
+                        go get ./...
+                        go build -o nancy .  
+                    '''
+                }
+            }
+        }
+        stage('Run Dependency Analysis') {
+            steps {
+                script { 
+                    sh '''
+                        go mod tidy
+                        #Export the path of Nancy
+                        export PATH=$PATH:/var/lib/jenkins/workspace/ci_pipeline_for_employee/nancy || true
+                        #Creating the report in Text format
+                        go list -json -deps ./... | nancy sleuth > nancy_scan_results.txt || true  
+                        cat nancy_scan_results.txt  
+                    '''
+                }
+            }
+        }
+        
+        // Bug Analysis 
+        stage('Bug Analysis') {
+            steps {
+                script { 
+                    sh '''
+                        #Install nginx to server html page &  golangci-lint to run bug analysis
+                        sudo apt install nginx -y
+                        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+                        #Add the env path to support the golangci-lint command 
+                        export GOROOT=/usr/local/go
+                        export GOPATH=$HOME/ 
+                        export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+                        
+                        #Run golangci-lint and copy the HTML report to Nginx directory
+                        golangci-lint run --out-format html > bug_analysis-report.html || true
+                        sudo cp bug_analysis-report.html /var/www/html/index.nginx-debian.html
+                        echo "http://175.41.183.65/"
+                        rm *.html || true
+                    '''
+                }
+            }
+        }
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/azhar421/employee_packer.git'
+            }
+        }
+        
+        // Run Packer Build
+        stage('Run Packer Build') {
+            steps {
+                script {
+                    // Change directory to the correct directory name
+                    dir('employee') {
+                        withCredentials([string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'), string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')]) {
+                            sh 'packer init -upgrade employee.pkr.hcl'
+                            sh 'packer build .'
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Rest of your stages...
+        
+        // Unit Test, Code Compilation, and other stages...
+    }
+    
+    post {
+        success {
+            echo 'Build successful! All checks passed.'
+        }
+        failure {
+            echo 'Build failed! Check the logs for details.'
+        }
+    }
+}
