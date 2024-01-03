@@ -1,13 +1,12 @@
 #!/bin/bash
 
 # Create custom URL for the repo
-repo_url="https://${GITHUB_TOKEN}@github.com/avengers-p6/employee-api.git"
-
+repo_url="https://github.com/azhar421/employee_packer.git"
+                   
 # Clone the repository
 git clone "$repo_url"
-
 # Install the dependencies
-sudo cp ~/employee-api/employee.service /etc/systemd/system/employee.service
+sudo cp ~/employee_packer/employee/employee.service /etc/systemd/system/employee.service
 sudo snap install go --classic
 cd ~/employee-api
 go mod download
